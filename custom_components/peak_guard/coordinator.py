@@ -581,10 +581,20 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 setpoint_w = discharge_setpoint_w
                 self.mode_manager.last_charge_setpoint_w = 0.0
             elif mode == "solar_charge":
-                charge_power_w = min(
-                    self.battery_max_charge_w,
-                    max(0.0, solar_surplus_w - DEFAULT_SOLAR_SURPLUS_MARGIN_W),
-                )
+                if (
+                    battery_soc >= self.controller_settings["max_charge_soc"]
+                    or solar_surplus_w
+                    < self.controller_settings["minimum_solar_surplus_w"]
+                ):
+                    charge_power_w = 0.0
+                else:
+                    charge_power_w = min(
+                        self.battery_max_charge_w,
+                        max(
+                            0.0,
+                            solar_surplus_w - DEFAULT_SOLAR_SURPLUS_MARGIN_W,
+                        ),
+                    )
                 setpoint_w = self._ramp_charge_setpoint(-charge_power_w, now)
             elif mode == "grid_charge":
                 charge_power_w = min(

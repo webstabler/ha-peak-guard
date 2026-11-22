@@ -102,13 +102,14 @@ not assume it is safe to discharge.
 
 When discharge is not required, the mode manager can select:
 
-- **Solar charge:** when estimated solar surplus is at least the configurable
-  **Minimum Solar Surplus** and SoC is below the maximum charging SoC minus the
-  configured SoC hysteresis. Once started, it can continue up to the maximum
-  charging SoC, avoiding mode changes around that threshold. Charging power is
-  limited by the battery's
-  configured maximum charging power and uses a 100 W surplus reserve. The
-  grid-charging limit does not restrict solar charging.
+- **Solar charge:** starts when estimated solar surplus reaches the
+  configurable **Minimum Solar Surplus** and SoC is below the maximum charging
+  SoC. The solar-charge mode stays selected until SoC rises above the maximum
+  charging SoC plus the configured SoC hysteresis. At or above the maximum
+  charging SoC, its setpoint is zero; the mode can therefore remain
+  `solar_charge` while no power is requested. When charging power is requested,
+  it is limited by the battery's configured maximum and uses a 100 W surplus
+  reserve. The grid-charging limit does not restrict solar charging.
 - **Grid charge:** when SoC is below the grid-charging SoC limit, at least
   500 W of peak headroom remains after the configurable grid-charge margin
   and discharge has not already started in the current quarter-hour. Once
@@ -260,8 +261,8 @@ ranges are shown below.
 | Maximum Grid Charge Power | Battery maximum charging power | 0–20000 W / 100 | Additional cap for grid charging only; the effective grid limit is the lower of this value and the battery maximum configured above. |
 | Grid Charging SoC Limit | 60% | 0–100% / 1 | Start grid charging below this SoC; once started, charging can continue through the hysteresis band. |
 | Minimum Solar Surplus | 200 W | 0–5000 W / 50 | Minimum estimated PV surplus required to start or continue solar charging. |
-| Charging SoC Hysteresis | 2% | 0–20% / 0.5 | Shared SoC band: solar charging starts below Maximum Charging SoC minus this amount and continues up to the maximum; grid charging continues above its limit by this amount, capped by Maximum Charging SoC. |
-| Maximum Charging SoC | 80% | 0–100% / 1 | Controlled charging is not selected at or above this SoC. |
+| Charging SoC Hysteresis | 2% | 0–20% / 0.5 | Shared SoC band: solar-charge mode remains selected until above Maximum Charging SoC plus this amount; grid charging continues above its limit by this amount, capped by Maximum Charging SoC. |
+| Maximum Charging SoC | 80% | 0–100% / 1 | Charging setpoint is zero at or above this SoC; solar-charge mode can remain selected until the SoC hysteresis cutoff. |
 | Switch SOC threshold | 20% | 0–100% / 1 | Legacy setting entity; currently not used by the active PI/mode-selection logic. |
 
 Controller settings are persisted in the Home Assistant config entry. The

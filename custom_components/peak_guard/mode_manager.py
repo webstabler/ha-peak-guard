@@ -46,9 +46,6 @@ class BatteryModeManager:
         """Select a mode and return (mode, reason)."""
         self._update_interval(interval_id)
 
-        if battery_soc >= max_charge_soc:
-            self.solar_charge_latched = False
-
         if discharge_required:
             self.grid_charge_latched = False
             if discharge_active:
@@ -74,20 +71,29 @@ class BatteryModeManager:
         if self.grid_charge_latched and battery_soc >= grid_charge_soc_stop:
             self.grid_charge_latched = False
 
-        solar_charge_start_soc = (
-            max_charge_soc - grid_charge_soc_hysteresis
-        )
         if (
-            battery_soc < max_charge_soc
-            and (
-                self.solar_charge_latched
-                or battery_soc < solar_charge_start_soc
-            )
+            self.solar_charge_latched
+            and battery_soc > max_charge_soc + grid_charge_soc_hysteresis
+        ):
+            self.solar_charge_latched = False
+
+        if (
+            not self.solar_charge_latched
+            and battery_soc < max_charge_soc
             and solar_surplus_w >= minimum_solar_surplus_w
         ):
             self.solar_charge_latched = True
+
+        if self.solar_charge_latched:
             self.mode = "solar_charge"
-            self.reason = "solar_surplus"
+            self.reason = (
+                "solar_surplus"
+                if (
+                    battery_soc < max_charge_soc
+                    and solar_surplus_w >= minimum_solar_surplus_w
+                )
+                else "solar_charge_hysteresis"
+            )
             return self.mode, self.reason
 
         # Grid charging is the only mode blocked after a discharge request.
