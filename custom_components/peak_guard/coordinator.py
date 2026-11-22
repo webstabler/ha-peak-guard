@@ -139,6 +139,10 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "grid_charge_soc_hysteresis",
                 DEFAULT_GRID_CHARGE_SOC_HYSTERESIS,
             )),
+            "minimum_solar_surplus_w": float(config.get(
+                "minimum_solar_surplus_w",
+                DEFAULT_MIN_SOLAR_SURPLUS_W,
+            )),
             "max_charge_soc": float(config.get(
                 "max_charge_soc", DEFAULT_MAX_CHARGE_SOC
             )),
@@ -562,7 +566,9 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 max_charge_soc=self.controller_settings["max_charge_soc"],
                 solar_surplus_w=solar_surplus_w,
                 available_peak_headroom_w=available_peak_headroom_w,
-                minimum_solar_surplus_w=DEFAULT_MIN_SOLAR_SURPLUS_W,
+                minimum_solar_surplus_w=self.controller_settings[
+                    "minimum_solar_surplus_w"
+                ],
                 minimum_grid_charge_headroom_w=DEFAULT_MIN_GRID_CHARGE_HEADROOM_W,
             )
             if self.evcc_battery_mode == "hold":

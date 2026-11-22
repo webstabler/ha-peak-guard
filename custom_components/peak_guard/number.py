@@ -118,8 +118,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         ControllerSettingNumber(coordinator, "grid_charge_soc_limit", "Grid Charging SoC Limit", 0, 100, 1, "%"),
         ControllerSettingNumber(
             coordinator,
+            "minimum_solar_surplus_w",
+            "Minimum Solar Surplus",
+            0,
+            5000,
+            50,
+            "W",
+        ),
+        ControllerSettingNumber(
+            coordinator,
             "grid_charge_soc_hysteresis",
-            "Grid Charging SoC Hysteresis",
+            "Charging SoC Hysteresis",
             0,
             20,
             0.5,

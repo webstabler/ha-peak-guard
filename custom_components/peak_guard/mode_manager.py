@@ -21,6 +21,7 @@ class BatteryModeManager:
         self.reason = "waiting_for_control_data"
         self.last_charge_setpoint_w = 0.0
         self.grid_charge_latched = False
+        self.solar_charge_latched = False
 
     def _update_interval(self, interval_id: int) -> None:
         if self.interval_id != interval_id:
@@ -44,6 +45,9 @@ class BatteryModeManager:
     ) -> tuple[str, str]:
         """Select a mode and return (mode, reason)."""
         self._update_interval(interval_id)
+
+        if battery_soc >= max_charge_soc:
+            self.solar_charge_latched = False
 
         if discharge_required:
             self.grid_charge_latched = False
@@ -70,12 +74,18 @@ class BatteryModeManager:
         if self.grid_charge_latched and battery_soc >= grid_charge_soc_stop:
             self.grid_charge_latched = False
 
-        # Solar tracking is always allowed (subject to the battery's normal
-        # upper SOC limit), including after a discharge in this block.
+        solar_charge_start_soc = (
+            max_charge_soc - grid_charge_soc_hysteresis
+        )
         if (
             battery_soc < max_charge_soc
+            and (
+                self.solar_charge_latched
+                or battery_soc < solar_charge_start_soc
+            )
             and solar_surplus_w >= minimum_solar_surplus_w
         ):
+            self.solar_charge_latched = True
             self.mode = "solar_charge"
             self.reason = "solar_surplus"
             return self.mode, self.reason
@@ -109,6 +119,7 @@ class BatteryModeManager:
             "reason": self.reason,
             "last_charge_setpoint_w": self.last_charge_setpoint_w,
             "grid_charge_latched": self.grid_charge_latched,
+            "solar_charge_latched": self.solar_charge_latched,
         }
 
     def restore_state(self, data: dict[str, Any] | None) -> None:
@@ -124,3 +135,9 @@ class BatteryModeManager:
             data.get("last_charge_setpoint_w", 0.0)
         )
         self.grid_charge_latched = bool(data.get("grid_charge_latched", False))
+        self.solar_charge_latched = bool(
+            data.get(
+                "solar_charge_latched",
+                data.get("mode") == "solar_charge",
+            )
+        )
