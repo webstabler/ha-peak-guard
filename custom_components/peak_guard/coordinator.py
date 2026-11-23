@@ -35,8 +35,9 @@ from .const import (
     DEFAULT_GRID_CHARGE_MARGIN_W,
     DEFAULT_MIN_GRID_CHARGE_HEADROOM_W,
     DEFAULT_GRID_CHARGE_RAMP_RATE_W_PER_S,
-    DEFAULT_SOLAR_SURPLUS_MARGIN_W,
     DEFAULT_MIN_SOLAR_SURPLUS_W,
+    DEFAULT_SOLAR_SURPLUS_HYSTERESIS_W,
+    DEFAULT_SOLAR_SURPLUS_FILTER_TIME_S,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -142,6 +143,14 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "minimum_solar_surplus_w": float(config.get(
                 "minimum_solar_surplus_w",
                 DEFAULT_MIN_SOLAR_SURPLUS_W,
+            )),
+            "solar_surplus_hysteresis_w": float(config.get(
+                "solar_surplus_hysteresis_w",
+                DEFAULT_SOLAR_SURPLUS_HYSTERESIS_W,
+            )),
+            "solar_surplus_filter_time_s": float(config.get(
+                "solar_surplus_filter_time_s",
+                DEFAULT_SOLAR_SURPLUS_FILTER_TIME_S,
             )),
             "max_charge_soc": float(config.get(
                 "max_charge_soc", DEFAULT_MAX_CHARGE_SOC
@@ -537,6 +546,13 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Estimate PV surplus from net grid power plus measured battery
             # discharge (negative measured battery power means charging).
             solar_surplus_w = max(0.0, -(grid_power_w + battery_power_w))
+            filtered_solar_surplus_w = self.mode_manager.filter_solar_surplus(
+                solar_surplus_w,
+                now_ts=now.timestamp(),
+                filter_time_s=self.controller_settings[
+                    "solar_surplus_filter_time_s"
+                ],
+            )
             grid_charge_margin_w = self.controller_settings["grid_charge_margin_w"]
             max_grid_import_w = min(
                 remaining_power_w,
@@ -564,10 +580,13 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "grid_charge_soc_hysteresis"
                 ],
                 max_charge_soc=self.controller_settings["max_charge_soc"],
-                solar_surplus_w=solar_surplus_w,
+                solar_surplus_w=filtered_solar_surplus_w,
                 available_peak_headroom_w=available_peak_headroom_w,
                 minimum_solar_surplus_w=self.controller_settings[
                     "minimum_solar_surplus_w"
+                ],
+                solar_surplus_hysteresis_w=self.controller_settings[
+                    "solar_surplus_hysteresis_w"
                 ],
                 minimum_grid_charge_headroom_w=DEFAULT_MIN_GRID_CHARGE_HEADROOM_W,
             )
@@ -581,21 +600,8 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 setpoint_w = discharge_setpoint_w
                 self.mode_manager.last_charge_setpoint_w = 0.0
             elif mode == "solar_charge":
-                if (
-                    battery_soc >= self.controller_settings["max_charge_soc"]
-                    or solar_surplus_w
-                    < self.controller_settings["minimum_solar_surplus_w"]
-                ):
-                    charge_power_w = 0.0
-                else:
-                    charge_power_w = min(
-                        self.battery_max_charge_w,
-                        max(
-                            0.0,
-                            solar_surplus_w - DEFAULT_SOLAR_SURPLUS_MARGIN_W,
-                        ),
-                    )
-                setpoint_w = self._ramp_charge_setpoint(-charge_power_w, now)
+                setpoint_w = 0.0
+                self.mode_manager.last_charge_setpoint_w = 0.0
             elif mode == "grid_charge":
                 charge_power_w = min(
                     self.battery_max_charge_w,
@@ -625,15 +631,16 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         virtual_anker_disabled = (
             self.evcc_battery_mode == "hold"
         )
-        virtual_anker_surplus_active = (
-            battery_soc >= self.controller_settings["max_charge_soc"]
+        virtual_anker_self_consumption = mode in (
+            "solar_charge",
+            "self_consumption",
         )
         virtual_anker_set_power_zero = (
-            virtual_anker_disabled or virtual_anker_surplus_active
+            virtual_anker_disabled or virtual_anker_self_consumption
         )
         virtual_anker_operating_mode =  (
             "self_consumption"
-            if virtual_anker_surplus_active and not virtual_anker_disabled
+            if virtual_anker_self_consumption and not virtual_anker_disabled
             else "third_party_control"
         )
         virtual_anker_power_w = (

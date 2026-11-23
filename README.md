@@ -102,14 +102,23 @@ not assume it is safe to discharge.
 
 When discharge is not required, the mode manager can select:
 
-- **Solar charge:** starts when estimated solar surplus reaches the
-  configurable **Minimum Solar Surplus** and SoC is below the maximum charging
-  SoC. The solar-charge mode stays selected until SoC rises above the maximum
-  charging SoC plus the configured SoC hysteresis. At or above the maximum
-  charging SoC, its setpoint is zero; the mode can therefore remain
-  `solar_charge` while no power is requested. When charging power is requested,
-  it is limited by the battery's configured maximum and uses a 100 W surplus
-  reserve. The grid-charging limit does not restrict solar charging.
+- **Self-consumption:** when SoC is above the maximum charging SoC, Peak Guard
+  yields control to the battery's native self-consumption behavior.
+  Peak-protection discharge takes priority, including when SoC is above that
+  limit.
+- **Solar charge:** enables the battery's internal self-consumption controller
+  when the filtered solar surplus reaches **Minimum Solar Surplus** and SoC is
+  below the maximum charging SoC. The **Solar Surplus Filter Time** controls
+  how quickly the filtered value follows measurements; a short dip therefore
+  doesn't immediately switch modes. During that brief dip, the battery's
+  internal controller remains enabled and uses its live measurements to track
+  charging. Once selected, the mode remains active until the filtered surplus
+  reaches the off threshold (the start threshold minus **Solar Surplus
+  Hysteresis**, floored at zero). It re-enters only when surplus reaches the
+  start threshold again. Peak Guard sends no charge setpoint in this mode.
+  The battery's own charging limits apply here; Peak Guard's configured charge
+  power caps apply to explicit grid charging, not this native solar tracking.
+  Solar mode stops at the maximum charging SoC.
 - **Grid charge:** when SoC is below the grid-charging SoC limit, at least
   500 W of peak headroom remains after the configurable grid-charge margin
   and discharge has not already started in the current quarter-hour. Once
@@ -123,7 +132,8 @@ When discharge is not required, the mode manager can select:
   ramps up at the separately configurable **Grid Charge Ramp Rate**. The charge
   setpoint is additionally capped so projected grid import does not exceed
   the lower of the target peak and the remaining quarter-hour energy budget.
-- **Idle:** when neither charging mode is eligible.
+- **Idle:** Peak Guard retains control but requests zero power when neither
+  charging mode is eligible.
 
 Solar surplus is estimated from grid power plus measured battery discharge.
 Charging setpoints are negative; discharging setpoints are positive. Charging
@@ -160,8 +170,8 @@ the integration always uses positive = discharging and negative = charging.
 | Battery SOC | % | Latest battery state of charge. |
 | Measured Battery Power | W | Battery power normalized to positive = discharging. |
 | Export-safe Maximum Discharge | W | Current hard ceiling on battery discharge. |
-| Battery Setpoint | W | Signed calculated setpoint; positive = discharge, negative = charge. |
-| Battery Operating Mode | — | `discharge`, `solar_charge`, `grid_charge`, or `idle`. |
+| Battery Setpoint | W | Explicit Peak Guard setpoint; positive = discharge, negative = charge. It is zero in `solar_charge` while the battery's internal controller handles solar charging. |
+| Battery Operating Mode | — | `discharge`, `solar_charge`, `grid_charge`, `idle`, or `self_consumption`. |
 | Battery Operating Mode Reason | — | Machine-readable reason for the selected mode. |
 | Available Solar Surplus | W | Estimated solar surplus available for charging. |
 | Available Peak Charging Headroom | W | Remaining grid-power headroom available to grid charging. |
@@ -197,11 +207,14 @@ official integration's control values:
 
 | Sensor | Values / unit | Behavior |
 | --- | --- | --- |
-| Operating Mode | `third_party_control` | Keeps the virtual battery under explicit setpoint control. |
-| Grid Power | `charge`, `discharge` | Mirrors the direction of PeakGuard's signed setpoint when enabled; otherwise `charge` with zero power. |
-| Power | W | Absolute PeakGuard setpoint, or 0 W while EVCC mode is `hold` or SoC is at/above **Maximum Charging SoC**. |
+| Operating Mode | `third_party_control`, `self_consumption` | Uses native self-consumption during Peak Guard's `solar_charge` and `self_consumption` modes; otherwise it applies explicit setpoint control. |
+| Grid Power | `charge`, `discharge` | Mirrors the direction of Peak Guard's explicit setpoint; `charge` when setpoint is zero or native self-consumption is active. |
+| Power | W | Absolute Peak Guard setpoint, or 0 W while EVCC mode is `hold` or native self-consumption is active. |
 
 At zero power, third-party control prevents both charging and discharging.
+During Peak Guard's `solar_charge` and `self_consumption` modes, Peak Guard
+yields control to the battery's native strategy; peak-protection discharge
+still takes priority.
 This virtual device reports controller state only; it does not communicate
 with or control an Anker battery.
 
@@ -250,7 +263,7 @@ ranges are shown below.
 | PI Integral Gain | 0.01 | 0–0.2 / 0.001 | Integral response to sustained peak error. |
 | Battery Activation Threshold | 300 W | 0–5000 W / 50 | Error needed to activate discharge; a charging-mode interruption or immediate peak excursion can bypass the normal minimum-off delay. |
 | Battery Deactivation Threshold | 100 W | 0–3000 W / 50 | Negative error threshold used when considering discharge deactivation. |
-| Battery Power Ramp Rate | 200 W/s | 1–5000 W/s / 25 | Limits normal changes in discharge and solar-charge setpoints. |
+| Battery Power Ramp Rate | 200 W/s | 1–5000 W/s / 25 | Limits normal changes in discharge setpoints. |
 | Grid Charge Ramp Rate | 50 W/s | 1–1000 W/s / 25 | Limits increases in grid-charge power; reductions remain immediate. |
 | Minimum Battery On Time | 120 s | 0–900 s / 10 | Minimum time before the controller may deactivate after starting. |
 | Minimum Battery Off Time | 120 s | 0–900 s / 10 | Normal delay before starting after stopping; urgent peak protection can force activation. |
@@ -260,9 +273,11 @@ ranges are shown below.
 | Grid Charging Margin | 200 W | 0–1000 W / 10 | Headroom kept below the target peak while grid charging. |
 | Maximum Grid Charge Power | Battery maximum charging power | 0–20000 W / 100 | Additional cap for grid charging only; the effective grid limit is the lower of this value and the battery maximum configured above. |
 | Grid Charging SoC Limit | 60% | 0–100% / 1 | Start grid charging below this SoC; once started, charging can continue through the hysteresis band. |
-| Minimum Solar Surplus | 200 W | 0–5000 W / 50 | Minimum estimated PV surplus required to start or continue solar charging. |
-| Charging SoC Hysteresis | 2% | 0–20% / 0.5 | Shared SoC band: solar-charge mode remains selected until above Maximum Charging SoC plus this amount; grid charging continues above its limit by this amount, capped by Maximum Charging SoC. |
-| Maximum Charging SoC | 80% | 0–100% / 1 | Charging setpoint is zero at or above this SoC; solar-charge mode can remain selected until the SoC hysteresis cutoff. |
+| Minimum Solar Surplus | 200 W | 0–5000 W / 50 | Minimum filtered PV surplus required to enable the battery's internal self-consumption controller. |
+| Solar Surplus Hysteresis | 100 W | 0–5000 W / 50 | Difference between the solar mode's start and off thresholds; the off threshold is floored at zero. |
+| Solar Surplus Filter Time | 10 s | 0–60 s / 1 | Exponential moving-average time constant for solar-mode transitions; 0 disables filtering. |
+| Charging SoC Hysteresis | 2% | 0–20% / 0.5 | Grid charging continues above its SoC limit by this amount, capped by Maximum Charging SoC. |
+| Maximum Charging SoC | 80% | 0–100% / 1 | Solar and grid charging stop at this SoC; above it, control yields to self-consumption. |
 | Switch SOC threshold | 20% | 0–100% / 1 | Legacy setting entity; currently not used by the active PI/mode-selection logic. |
 
 Controller settings are persisted in the Home Assistant config entry. The
