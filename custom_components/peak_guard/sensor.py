@@ -162,6 +162,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
         ),
         CapacitySensor(
             coordinator,
+            "last_completed_peak_kw",
+            "Last Quarter-hour Peak",
+            "kW",
+        ),
+        CapacitySensor(
+            coordinator,
             "imported_energy_kwh",
             "Quarter-hour Imported Energy",
             "kWh",

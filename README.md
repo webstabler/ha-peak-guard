@@ -180,6 +180,7 @@ the integration always uses positive = discharging and negative = charging.
 | Available Solar Surplus | W | Estimated solar surplus available for charging. |
 | Available Peak Charging Headroom | W | Remaining grid-power headroom available to grid charging. |
 | Monthly Peak | kW | Highest fully covered quarter-hour average import recorded for the month. |
+| Last Quarter-hour Peak | kW | Average import peak for the most recently completed fully covered 15-minute interval; updates each completed quarter-hour and can be charted from Recorder history. |
 | Quarter-hour Imported Energy | kWh | Imported energy accumulated in the current 15-minute interval. |
 | Quarter-hour Remaining Time | s | Time remaining in the current interval. |
 | Quarter-hour Remaining Power | W | Maximum average grid power allowed for the rest of the interval. |
