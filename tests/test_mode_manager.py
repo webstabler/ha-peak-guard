@@ -117,6 +117,28 @@ class BatteryModeManagerTests(unittest.TestCase):
         self.assertEqual(initial, 300.0)
         self.assertAlmostEqual(after_dip, 200.0)
 
+    def test_native_mode_is_retained_for_brief_interval_boundary_gap(self):
+        manager = BatteryModeManager()
+        self.select(
+            manager,
+            interval_id=1,
+            battery_soc=50.0,
+            solar_surplus_w=300.0,
+        )
+
+        self.assertTrue(
+            manager.should_retain_native_mode(
+                sample_timestamp=1799.0,
+                now_timestamp=1804.0,
+            )
+        )
+        self.assertFalse(
+            manager.should_retain_native_mode(
+                sample_timestamp=1799.0,
+                now_timestamp=1810.0,
+            )
+        )
+
     def test_restored_default_mode_migrates_to_self_consumption(self):
         manager = BatteryModeManager()
 

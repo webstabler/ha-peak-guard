@@ -97,6 +97,10 @@ exceeds the normal ramp-down rate. The default margin is 150 W.
 If a required sensor is missing, unavailable, invalid, or has an unsupported
 unit, the integration reports unavailable data and inhibits control; it does
 not assume it is safe to discharge.
+At a quarter-hour boundary, an already active native solar/self-consumption
+mode may be retained for up to 10 seconds while waiting for the first grid
+sample of the new interval. Explicit discharge and grid-charge setpoints remain
+inhibited until interval data is valid.
 
 ### Charging modes
 

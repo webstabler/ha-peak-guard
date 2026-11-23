@@ -620,13 +620,21 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._last_control_update_ts = now.timestamp()
         else:
             setpoint_w = self.controller.inhibit()
-            self.mode_manager.mode = "idle"
-            self.mode_manager.reason = "control_data_invalid"
             self.mode_manager.last_charge_setpoint_w = 0.0
+            if self.mode_manager.should_retain_native_mode(
+                sample_timestamp=sample_time.timestamp(),
+                now_timestamp=now.timestamp(),
+            ):
+                mode = self.mode_manager.mode
+                mode_reason = "interval_boundary_data_grace"
+                self.mode_manager.reason = mode_reason
+            else:
+                self.mode_manager.mode = "idle"
+                self.mode_manager.reason = "control_data_invalid"
+                mode = "idle"
+                mode_reason = "control_data_invalid"
             solar_surplus_w = None
             available_peak_headroom_w = None
-            mode = "idle"
-            mode_reason = "control_data_invalid"
 
         virtual_anker_disabled = (
             self.evcc_battery_mode == "hold"

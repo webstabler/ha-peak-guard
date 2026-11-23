@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from .const import (
+    DEFAULT_INTERVAL_BOUNDARY_MODE_GRACE_SECONDS,
     DEFAULT_SOLAR_SURPLUS_FILTER_TIME_S,
     DEFAULT_SOLAR_SURPLUS_HYSTERESIS_W,
 )
@@ -55,6 +56,26 @@ class BatteryModeManager:
         self.filtered_solar_surplus_w = filtered
         self.solar_surplus_filter_ts = now_ts
         return filtered
+
+    def should_retain_native_mode(
+        self,
+        *,
+        sample_timestamp: float,
+        now_timestamp: float,
+        grace_seconds: float = DEFAULT_INTERVAL_BOUNDARY_MODE_GRACE_SECONDS,
+    ) -> bool:
+        """Keep native control only across a brief quarter-hour sample lag."""
+        if self.mode not in ("solar_charge", "self_consumption"):
+            return False
+
+        sample_interval_id = int(sample_timestamp // 900)
+        now_interval_id = int(now_timestamp // 900)
+        sample_age_seconds = now_timestamp - sample_timestamp
+        return (
+            self.interval_id == sample_interval_id
+            and now_interval_id == sample_interval_id + 1
+            and 0.0 <= sample_age_seconds <= grace_seconds
+        )
 
     def _update_interval(self, interval_id: int) -> None:
         if self.interval_id != interval_id:
