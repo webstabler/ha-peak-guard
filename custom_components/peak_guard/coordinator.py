@@ -644,6 +644,7 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 mode = "idle"
                 mode_reason = "control_data_invalid"
             solar_surplus_w = None
+            filtered_surplus_w = None
             available_peak_headroom_w = None
 
         virtual_anker_disabled = (
