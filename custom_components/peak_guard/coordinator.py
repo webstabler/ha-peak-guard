@@ -700,6 +700,7 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "evcc_battery_mode": self.evcc_battery_mode,
             "grid_charging_blocked": self.mode_manager.discharge_started_this_block,
             "available_solar_surplus_w": solar_surplus_w,
+            "filtered_surplus_w": filtered_surplus_w,
             "available_peak_headroom_w": available_peak_headroom_w,
             "grid_charge_soc_limit": self.controller_settings["grid_charge_soc_limit"],
             "remaining_power_w": remaining_power_w,

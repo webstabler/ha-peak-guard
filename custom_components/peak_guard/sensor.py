@@ -150,6 +150,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
         ),
         CapacitySensor(
             coordinator,
+            "filtered_surplus_w",
+            "Filtered Surplus",
+            "W",
+        ),
+        CapacitySensor(
+            coordinator,
             "available_peak_headroom_w",
             "Available Peak Charging Headroom",
             "W",
