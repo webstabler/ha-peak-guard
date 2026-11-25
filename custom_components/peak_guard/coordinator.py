@@ -521,7 +521,7 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         remaining_power_w = self._calculate_remaining_power_w(status)
 
         discharge_required = False
-        if status["control_data_valid"] and remaining_power_w is not None:
+        if (True or status["control_data_valid"]) and remaining_power_w is not None:
             discharge_setpoint_w = self.controller.update(
                 grid_power_w=grid_power_w,
                 allowed_grid_power_w=remaining_power_w,
