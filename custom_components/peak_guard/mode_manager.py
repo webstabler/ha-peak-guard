@@ -100,7 +100,7 @@ class BatteryModeManager:
     ) -> tuple[str, str]:
         """Select a mode and return (mode, reason)."""
         self._update_interval(interval_id)
-
+        # Discharge takes priority over all other modes, including self-consumption.
         if discharge_required:
             self.grid_charge_latched = False
             if discharge_active:
@@ -111,48 +111,42 @@ class BatteryModeManager:
                 self.mode = "idle"
                 self.reason = "peak_protection_waiting_or_unavailable"
             return self.mode, self.reason
-
+        # Self-consumption is active when SOC is at configured maximum.
         if battery_soc >= max_charge_soc:
             self.grid_charge_latched = False
             self.solar_charge_latched = False
             self.mode = "self_consumption"
             self.reason = "max_charge_soc_reached"
             return self.mode, self.reason
-
+        # Grid charging is only allowed when there is sufficient headroom to avoid peak demand.
+        # When grid charging is already active, it is allowed to continue as long as there is any headroom at all.
+        # When grid charging is not active, it is only allowed to start if there is sufficient headroom to avoid peak demand.
         grid_charge_was_active = self.mode == "grid_charge"
         headroom_sufficient = (
             available_peak_headroom_w >= minimum_grid_charge_headroom_w
             if not grid_charge_was_active
             else available_peak_headroom_w > 0
         )
-
-        grid_charge_soc_stop = min(
-            grid_charge_soc_limit + grid_charge_soc_hysteresis,
-            max_charge_soc,
-        )
-        if self.grid_charge_latched and battery_soc >= grid_charge_soc_stop:
+        # Grid charging is latched on when it starts, and latched off when the battery SOC exceeds the configured limit plus hysteresis.
+        grid_charge_soc_start = grid_charge_soc_limit
+        grid_charge_soc_stop = min(grid_charge_soc_limit + grid_charge_soc_hysteresis, max_charge_soc)
+        if battery_soc >= grid_charge_soc_stop or self.discharge_started_this_block:
             self.grid_charge_latched = False
-
+        elif battery_soc < grid_charge_soc_start and headroom_sufficient:
+            self.grid_charge_latched = True
+        # Solar charging is latched on when it starts, and latched off when the solar surplus drops below the configured minimum plus hysteresis.
         solar_charge_start_w = max(0.0, minimum_solar_surplus_w)
-        solar_charge_stop_w = max(
-            0.0, solar_charge_start_w - solar_surplus_hysteresis_w
-        )
-
-        if self.solar_charge_latched and (
-            solar_surplus_w <= solar_charge_stop_w
-            or battery_soc >= max_charge_soc
-        ):
+        solar_charge_stop_w = max(0.0, solar_charge_start_w - solar_surplus_hysteresis_w)
+        if self.solar_charge_latched and (solar_surplus_w <= solar_charge_stop_w or battery_soc >= max_charge_soc):
             self.solar_charge_latched = False
-
-        if (
-            not self.solar_charge_latched
-            and battery_soc < max_charge_soc
-            and solar_surplus_w > 0.0
-            and solar_surplus_w >= solar_charge_start_w
-        ):
+        if (battery_soc < max_charge_soc and solar_surplus_w >= solar_charge_start_w):
             self.solar_charge_latched = True
-
-        if self.solar_charge_latched:
+        #
+        if self.grid_charge_latched:
+            self.mode = "grid_charge"
+            self.reason = "available_peak_headroom"
+            return self.mode, self.reason
+        elif self.solar_charge_latched:
             self.mode = "solar_charge"
             self.reason = (
                 "solar_surplus"
@@ -163,27 +157,27 @@ class BatteryModeManager:
                 else "solar_charge_hysteresis"
             )
             return self.mode, self.reason
-
-        # Grid charging is the only mode blocked after a discharge request.
-        if self.discharge_started_this_block:
+        elif battery_soc >= max_charge_soc:
+            self.mode = "self_consumption"
+            self.reason = "max_charge_soc_reached"
+            return self.mode, self.reason
+        elif battery_soc >= grid_charge_soc_limit:
+            self.mode = "idle"
+            self.reason = "grid_charge_soc_limit"
+            return self.mode, self.reason
+        elif self.discharge_started_this_block:
             self.grid_charge_latched = False
             self.mode = "idle"
             self.reason = "grid_charging_blocked_after_discharge"
-        elif not self.grid_charge_latched and (
-            battery_soc >= grid_charge_soc_limit
-            or battery_soc >= max_charge_soc
-        ):
-            self.mode = "idle"
-            self.reason = "grid_charge_soc_limit"
+            return self.mode, self.reason
         elif not headroom_sufficient:
             self.mode = "idle"
             self.reason = "insufficient_peak_headroom"
+            return self.mode, self.reason
         else:
-            self.grid_charge_latched = True
-            self.mode = "grid_charge"
-            self.reason = "available_peak_headroom"
-
-        return self.mode, self.reason
+            self.mode = "idle"
+            self.reason = "unknown"
+            return self.mode, self.reason            
 
     def to_dict(self) -> dict[str, Any]:
         return {
