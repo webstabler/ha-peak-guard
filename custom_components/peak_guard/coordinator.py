@@ -558,7 +558,7 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 battery_power_w=battery_power_w,
                 now_ts=now.timestamp(),
                 filter_time_s=self.controller_settings[
-                    "surplus_filter_time_s"
+                    "solar_surplus_filter_time_s"
                 ],
             )
 
