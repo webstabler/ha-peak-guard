@@ -30,6 +30,21 @@ class BatteryModeManager:
         self.solar_charge_latched = False
         self.filtered_solar_surplus_w: float | None = None
         self.solar_surplus_filter_ts: float | None = None
+        self.filtered_surplus_w: float | None = None
+        self.surplus_filter_ts: float | None = None
+
+    def filter_surplus(self, grid_power_w: float, battery_power_w: float, *, now_ts: float, filter_time_s: float = DEFAULT_SOLAR_SURPLUS_FILTER_TIME_S) -> float:
+        """Return an exponentially smoothed solar-surplus measurement."""
+        surplus_w = float(-grid_power_w - battery_power_w) # Negative = import / Positive = export
+        if (self.filtered_surplus_w is None or self.surplus_filter_ts is None or filter_time_s <= 0.0):
+            filtered = surplus_w
+        else:
+            dt = max(0.0, now_ts - self.surplus_filter_ts)
+            alpha = dt / (filter_time_s + dt) if dt > 0.0 else 0.0
+            filtered = self.filtered_surplus_w + alpha * (surplus_w - self.filtered_surplus_w)
+        self.filtered_solar_surplus_w = filtered
+        self.solar_surplus_filter_ts = now_ts
+        return filtered
 
     def filter_solar_surplus(
         self,
@@ -139,7 +154,7 @@ class BatteryModeManager:
         solar_charge_stop_w = max(0.0, solar_charge_start_w - solar_surplus_hysteresis_w)
         if self.solar_charge_latched and (solar_surplus_w <= solar_charge_stop_w or battery_soc >= max_charge_soc):
             self.solar_charge_latched = False
-        if (battery_soc < max_charge_soc and solar_surplus_w >= solar_charge_start_w):
+        if (battery_soc < max_charge_soc and solar_surplus_w > solar_charge_start_w):
             self.solar_charge_latched = True
         #
         if self.grid_charge_latched:
@@ -152,7 +167,7 @@ class BatteryModeManager:
                 "solar_surplus"
                 if (
                     battery_soc < max_charge_soc
-                    and solar_surplus_w >= solar_charge_start_w
+                    and solar_surplus_w > solar_charge_start_w
                 )
                 else "solar_charge_hysteresis"
             )
