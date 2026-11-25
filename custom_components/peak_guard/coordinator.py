@@ -547,13 +547,6 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # discharge (negative measured battery power means charging).
             solar_surplus_w = max(0.0, -(grid_power_w + battery_power_w))
             filtered_solar_surplus_w = self.mode_manager.filter_solar_surplus(
-                solar_surplus_w,
-                now_ts=now.timestamp(),
-                filter_time_s=self.controller_settings[
-                    "solar_surplus_filter_time_s"
-                ],
-            )
-            filtered_surplus_w = self.mode_manager.filtered_surplus_w(
                 grid_power_w=grid_power_w,
                 battery_power_w=battery_power_w,
                 now_ts=now.timestamp(),
@@ -590,7 +583,7 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "grid_charge_soc_hysteresis"
                 ],
                 max_charge_soc=self.controller_settings["max_charge_soc"],
-                solar_surplus_w=filtered_surplus_w,
+                solar_surplus_w=filtered_solar_surplus_w,
                 available_peak_headroom_w=available_peak_headroom_w,
                 minimum_solar_surplus_w=self.controller_settings[
                     "minimum_solar_surplus_w"
@@ -644,7 +637,7 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 mode = "idle"
                 mode_reason = "control_data_invalid"
             solar_surplus_w = None
-            filtered_surplus_w = None
+            filtered_solar_surplus_w = None
             available_peak_headroom_w = None
 
         virtual_anker_disabled = (
@@ -701,7 +694,7 @@ class CapacityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "evcc_battery_mode": self.evcc_battery_mode,
             "grid_charging_blocked": self.mode_manager.discharge_started_this_block,
             "available_solar_surplus_w": solar_surplus_w,
-            "filtered_surplus_w": filtered_surplus_w,
+            "filtered_solar_surplus_w": filtered_solar_surplus_w,
             "available_peak_headroom_w": available_peak_headroom_w,
             "grid_charge_soc_limit": self.controller_settings["grid_charge_soc_limit"],
             "remaining_power_w": remaining_power_w,

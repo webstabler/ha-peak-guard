@@ -150,8 +150,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
         ),
         CapacitySensor(
             coordinator,
-            "filtered_surplus_w",
-            "Filtered Surplus",
+            "filtered_solar_surplus_w",
+            "Available Solar Surplus (Filtered)",
             "W",
         ),
         CapacitySensor(

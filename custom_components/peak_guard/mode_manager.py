@@ -30,21 +30,20 @@ class BatteryModeManager:
         self.solar_charge_latched = False
         self.filtered_solar_surplus_w: float | None = None
         self.solar_surplus_filter_ts: float | None = None
-        self.filtered_surplus_w: float | None = None
-        self.surplus_filter_ts: float | None = None
+
 
     def filter_surplus(self, grid_power_w: float, battery_power_w: float, *, now_ts: float, filter_time_s: float = DEFAULT_SOLAR_SURPLUS_FILTER_TIME_S) -> float:
         """Return an exponentially smoothed solar-surplus measurement."""
         surplus_w = float(-grid_power_w - battery_power_w) # Negative = import / Positive = export
-        if (self.filtered_surplus_w is None or self.surplus_filter_ts is None or filter_time_s <= 0.0):
+        if (self.filtered_solar_surplus_w is None or self.solar_surplus_filter_ts is None or filter_time_s <= 0.0):
             filtered = surplus_w
         else:
-            dt = max(0.0, now_ts - self.surplus_filter_ts)
+            dt = max(0.0, now_ts - self.solar_surplus_filter_ts)
             alpha = dt / (filter_time_s + dt) if dt > 0.0 else 0.0
-            filtered = self.filtered_surplus_w + alpha * (surplus_w - self.filtered_surplus_w)
+            filtered = self.filtered_solar_surplus_w + alpha * (surplus_w - self.filtered_solar_surplus_w)
         self.filtered_solar_surplus_w = filtered
         self.solar_surplus_filter_ts = now_ts
-        return filtered
+        return max(0.0, filtered)
 
     def filter_solar_surplus(
         self,
