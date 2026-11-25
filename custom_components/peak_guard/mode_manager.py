@@ -112,11 +112,11 @@ class BatteryModeManager:
                 self.reason = "peak_protection_waiting_or_unavailable"
             return self.mode, self.reason
 
-        if battery_soc > max_charge_soc:
+        if battery_soc >= max_charge_soc:
             self.grid_charge_latched = False
             self.solar_charge_latched = False
             self.mode = "self_consumption"
-            self.reason = "above_max_charge_soc"
+            self.reason = "max_charge_soc_reached"
             return self.mode, self.reason
 
         grid_charge_was_active = self.mode == "grid_charge"

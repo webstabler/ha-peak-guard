@@ -24,7 +24,15 @@ class BatteryModeManagerTests(unittest.TestCase):
         mode, reason = self.select(manager, battery_soc=90.1)
 
         self.assertEqual(mode, "self_consumption")
-        self.assertEqual(reason, "above_max_charge_soc")
+        self.assertEqual(reason, "max_charge_soc_reached")
+
+    def test_soc_at_maximum_selects_self_consumption(self):
+        manager = BatteryModeManager()
+
+        mode, reason = self.select(manager, battery_soc=90.0)
+
+        self.assertEqual(mode, "self_consumption")
+        self.assertEqual(reason, "max_charge_soc_reached")
 
     def test_peak_protection_takes_priority_above_maximum(self):
         manager = BatteryModeManager()
@@ -38,14 +46,6 @@ class BatteryModeManagerTests(unittest.TestCase):
 
         self.assertEqual(mode, "discharge")
         self.assertEqual(reason, "peak_protection")
-
-    def test_soc_at_maximum_does_not_select_self_consumption(self):
-        manager = BatteryModeManager()
-
-        mode, reason = self.select(manager, battery_soc=90.0)
-
-        self.assertEqual(mode, "idle")
-        self.assertEqual(reason, "grid_charge_soc_limit")
 
     def test_solar_charge_stops_when_surplus_is_too_low(self):
         manager = BatteryModeManager()
